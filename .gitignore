@@ -8,6 +8,7 @@ lfw/
 logs/
 model_data/
 .temp_map_out/
+experiment/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -48,7 +48,9 @@ val_txt_path_merge  = "2007_val_merge1.txt"
 #   提取分类数据集
 #-------------------------------------------------#
 classification_root_path = "/media/lht/LHT/code/datasets/voc2007_merge1"
-classification_class_name = ["cat", "dog", "cow", "sheep", "horse", "bicycle", "motorbike", "car", "bus"]
+classification_class_name_known = ["cat", "dog", "cow", "sheep", "horse", "bicycle", "motorbike", "car", "bus"]
+classification_class_name_unknown = ["aeroplane", "bird", "boat", "bottle", "chair", "diningtable", "person", "pottedplant", "sofa", "train", "tvmonitor"]
+
 
 #-------------------------------------------------#
 #   合并类
@@ -134,10 +136,13 @@ def get_classification_dataset(train=True):
     #-------------------------------------------------#
     #   创建类别文件夹
     #-------------------------------------------------#
-    for class_name in classification_class_name:
+    for class_name in classification_class_name_known:
         if not os.path.exists(os.path.join(output_path, class_name)):
             os.makedirs(os.path.join(output_path, class_name))
-    
+    for class_name in classification_class_name_unknown:
+        if not os.path.exists(os.path.join(output_path, "zz_"+class_name)):
+            os.makedirs(os.path.join(output_path, "zz_"+class_name))
+            
     #-------------------------------------------------#
     #   遍历裁剪
     #-------------------------------------------------#
@@ -155,8 +160,10 @@ def get_classification_dataset(train=True):
             class_id = int(data[-1])
             class_name = before_classes[class_id]
             
-            # 查找合并后的类别
-            for merge_class in classification_class_name:
+            #-------------------------------------------------#
+            #   查找已知类
+            #-------------------------------------------------#
+            for merge_class in classification_class_name_known:
                 if class_name == merge_class:
                     image = cv2.imread(parts[0])
                     # x, y, w, h = int(data[0]), int(data[1]), int(data[2]), int(data[3])
@@ -168,7 +175,22 @@ def get_classification_dataset(train=True):
                         cv2.imwrite(os.path.join(output_path, merge_class, random_string+".jpg"), cropped_image)  # 保存截取的区域
                     else:
                         print("次文件出现异常："+parts[0])
-    
+            #-------------------------------------------------#
+            #   查找未知类
+            #-------------------------------------------------#
+            for merge_class in classification_class_name_unknown:
+                if class_name == merge_class:
+                    image = cv2.imread(parts[0])
+                    # x, y, w, h = int(data[0]), int(data[1]), int(data[2]), int(data[3])
+                    # cropped_image = image[int(y - h / 2):int(y + h / 2), int(x - w / 2):int(x + w / 2)]  # 截取box区域
+                    cropped_image = image[int(data[1]):int(data[3]), int(data[0]):int(data[2])]  # 截取box区域
+                    if cropped_image is not None and cropped_image.size != 0:
+                        # 生成长度为10的随机字符串
+                        random_string = ''.join(random.sample(all_chars, 10))
+                        cv2.imwrite(os.path.join(output_path, "zz_"+merge_class, random_string+".jpg"), cropped_image)  # 保存截取的区域
+                    else:
+                        print("次文件出现异常："+parts[0])
+                         
     if train:
         print("-->训练集提取完毕！！！")
     else:
