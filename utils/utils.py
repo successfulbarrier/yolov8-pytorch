@@ -3,7 +3,7 @@ import random
 import numpy as np
 import torch
 from PIL import Image
-
+from torch import nn
 
 #---------------------------------------------------------#
 #   将图像转换成RGB图像，防止灰度图在预测时报错。
@@ -101,3 +101,34 @@ def download_weights(phi, model_dir="./model_data"):
     if not os.path.exists(model_dir):
         os.makedirs(model_dir)
     load_state_dict_from_url(url, model_dir)
+
+#-------------------------------------------------#
+#   和GiraffeNeckV2相关的函数
+#-------------------------------------------------#
+def kaiming_init(module, a=0, mode="fan_out", nonlinearity="relu", 
+                 bias=0, distribution="normal"):
+    assert distribution in ["uniform", "normal"]
+    if distribution == "uniform":
+        nn.init.kaiming_uniform_(
+            module.weight, a=a, mode=mode, nonlinearity=nonlinearity
+        )
+    else:
+        nn.init.kaiming_normal_(
+            module.weight, a=a, mode=mode, nonlinearity=nonlinearity
+        )
+    if hasattr(module, "bias") and module.bias is not None:
+        nn.init.constant_(module.bias, bias)
+
+def constant_init(module, val, bias=0):
+    if hasattr(module, "weight") and module.weight is not None:
+        nn.init.constant_(module.weight, val)
+    if hasattr(module, "bias") and module.bias is not None:
+        nn.init.constant_(module.bias, bias)
+
+def make_divisible(v, divisor=8, min_value=None):
+    if min_value is None:
+        min_value = divisor
+    new_v = max(min_value, int(v + divisor / 2) // divisor * divisor)
+    if new_v < 0.9 * v:
+        new_v += divisor
+    return new_v

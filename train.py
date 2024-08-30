@@ -13,7 +13,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-from nets.yolo import YoloBody, YoloBody_test01
+from nets.yolo import YoloBody, YoloBody_dct, YoloBody_neck, YoloBody_dct_neck
 from nets.yolo_training import (Loss, ModelEMA, get_lr_scheduler,
                                 set_optimizer_lr, weights_init)
 from utils.callbacks import EvalCallback, LossHistory
@@ -287,7 +287,8 @@ if __name__ == "__main__":
     #   创建yolo模型
     #------------------------------------------------------#
     # model = YoloBody(input_shape, num_classes, phi, pretrained=pretrained)
-    model = YoloBody_test01(input_shape, num_classes, phi, pretrained=pretrained)
+    # model = YoloBody_dct(input_shape, num_classes, phi, pretrained=pretrained)
+    model = YoloBody_dct_neck(input_shape, num_classes, phi, pretrained=pretrained)
     
     if model_path != '':
         #------------------------------------------------------#

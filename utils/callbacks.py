@@ -1,5 +1,6 @@
 import datetime
 import os
+import cv2
 
 import torch
 import matplotlib
@@ -115,6 +116,8 @@ class EvalCallback():
         #   代码仅仅支持RGB图像的预测，所有其它类型的图像都会转化成RGB
         #---------------------------------------------------------#
         image       = cvtColor(image)
+        dct        = np.expand_dims(np.transpose(np.array(self.get_dct(image), dtype='float32')), (2, 0, 1), 0)
+
         #---------------------------------------------------------#
         #   给图像增加灰条，实现不失真的resize
         #   也可以直接resize进行识别
@@ -126,13 +129,15 @@ class EvalCallback():
         image_data  = np.expand_dims(np.transpose(preprocess_input(np.array(image_data, dtype='float32')), (2, 0, 1)), 0)
 
         with torch.no_grad():
-            images = torch.from_numpy(image_data)
+            images  = torch.from_numpy(image_data)
+            dct     = torch.from_numpy(dct)
             if self.cuda:
                 images = images.cuda()
+                dct = dct.cuda()
             #---------------------------------------------------------#
             #   将图像输入网络当中进行预测！
             #---------------------------------------------------------#
-            outputs = self.net(images)
+            outputs = self.net(images, dct)
             outputs = self.bbox_util.decode_box(outputs)
             #---------------------------------------------------------#
             #   将预测框进行堆叠，然后进行非极大抑制
@@ -228,3 +233,19 @@ class EvalCallback():
 
             print("Get map done.")
             shutil.rmtree(self.map_out_path)
+
+    def get_dct(self, rgb_image):
+        # 将RGB图像转换为YCBCR图像
+        ycbcr_image = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2YCrCb)
+        
+        # 对YCBCR图像进行DCT变换,先分块再对每个块进行单独的DCT变换
+        height, width = ycbcr_image.shape[0], ycbcr_image.shape[1]
+        dct_image = np.zeros((height // 8, width // 8, 64 * 3), dtype=np.float32)
+        for i in range(0, height, 8):
+            for j in range(0, width, 8):
+                for k in range(3):
+                    block = ycbcr_image[i:i+8, j:j+8, k]
+                    dct_block = cv2.dct(np.float32(block))
+                    dct_image[i//8, j//8, k*64:(k+1)*64] = dct_block.flatten()
+        return dct_image
+  

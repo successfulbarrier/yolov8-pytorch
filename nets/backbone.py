@@ -404,3 +404,4 @@ class Backbone_RGB_DCT_fusion2(nn.Module):
         x = self.dark5(x)
         feat3 = x
         return feat1, feat2, feat3
+
