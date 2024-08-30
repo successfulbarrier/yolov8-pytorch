@@ -49,7 +49,7 @@ class DFL(nn.Module):
         # return self.conv(x.view(b, self.c1, 4, a).softmax(1)).view(b, 4, a)
         
 #---------------------------------------------------#
-#   yolo_body
+#   官方YOLOV8网络
 #---------------------------------------------------#
 class YoloBody(nn.Module):
     def __init__(self, input_shape, num_classes, phi, pretrained=False):

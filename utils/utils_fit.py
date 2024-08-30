@@ -17,7 +17,7 @@ def fit_one_epoch(model_train, model, ema, yolo_loss, loss_history, eval_callbac
         if iteration >= epoch_step:
             break
 
-        images, bboxes = batch
+        images, bboxes, dct_images = batch
         with torch.no_grad():
             if cuda:
                 images = images.cuda(local_rank)
@@ -80,7 +80,7 @@ def fit_one_epoch(model_train, model, ema, yolo_loss, loss_history, eval_callbac
     for iteration, batch in enumerate(gen_val):
         if iteration >= epoch_step_val:
             break
-        images, bboxes = batch[0], batch[1]
+        images, bboxes, dct_images = batch[0], batch[1], batch[2]
         with torch.no_grad():
             if cuda:
                 images = images.cuda(local_rank)

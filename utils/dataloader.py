@@ -1,5 +1,6 @@
 from random import sample, shuffle
 
+import os
 import cv2
 import numpy as np
 import torch
@@ -51,7 +52,14 @@ class YoloDataset(Dataset):
                 image, box      = self.get_random_data_with_MixUp(image, box, image_2, box_2)
         else:
             image, box      = self.get_random_data(self.annotation_lines[index], self.input_shape, random = self.train)
-
+        
+        # 测试：保存RGB图像到本地成jpg文件
+        # rgb_image = np.array(image)
+        # save_path = os.path.join("saved_images", f"image_{index}.jpg")
+        # os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        # Image.fromarray(rgb_image).save(save_path)
+        
+        dct_image   = np.transpose(np.array(self.get_dct(image), dtype=np.float32), (2, 0, 1)) 
         image       = np.transpose(preprocess_input(np.array(image, dtype=np.float32)), (2, 0, 1))
         box         = np.array(box, dtype=np.float32)
         
@@ -81,7 +89,7 @@ class YoloDataset(Dataset):
             labels_out[:, 1] = box[:, -1]
             labels_out[:, 2:] = box[:, :4]
             
-        return image, labels_out
+        return image, labels_out, dct_image
 
     def rand(self, a=0, b=1):
         return np.random.rand()*(b-a) + a
@@ -388,19 +396,36 @@ class YoloDataset(Dataset):
             new_boxes = np.concatenate([box_1, box_2], axis=0)
         return new_image, new_boxes
     
+    def get_dct(self, rgb_image):
+        # 将RGB图像转换为YCBCR图像
+        ycbcr_image = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2YCrCb)
+        
+        # 对YCBCR图像进行DCT变换,先分块再对每个块进行单独的DCT变换
+        height, width = ycbcr_image.shape[0], ycbcr_image.shape[1]
+        dct_image = np.zeros((height // 8, width // 8, 64 * 3), dtype=np.float32)
+        for i in range(0, height, 8):
+            for j in range(0, width, 8):
+                for k in range(3):
+                    block = ycbcr_image[i:i+8, j:j+8, k]
+                    dct_block = cv2.dct(np.float32(block))
+                    dct_image[i//8, j//8, k*64:(k+1)*64] = dct_block.flatten()
+        return dct_image
     
 # DataLoader中collate_fn使用
 def yolo_dataset_collate(batch):
     images  = []
     bboxes  = []
-    for i, (img, box) in enumerate(batch):
+    dct_images  = []
+    for i, (img, box, dct_image) in enumerate(batch):
         images.append(img)
         box[:, 0] = i
         bboxes.append(box)
+        dct_images.append(dct_image)
             
     images  = torch.from_numpy(np.array(images)).type(torch.FloatTensor)
     bboxes  = torch.from_numpy(np.concatenate(bboxes, 0)).type(torch.FloatTensor)
-    return images, bboxes
+    dct_images  = torch.from_numpy(np.concatenate(dct_images)).type(torch.FloatTensor)
+    return images, bboxes, dct_images
 
 # # DataLoader中collate_fn使用
 # def yolo_dataset_collate(batch):
