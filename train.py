@@ -4,6 +4,8 @@
 import datetime
 import os
 from functools import partial
+# 你可以通过设置 CUDA_VISIBLE_DEVICES 环境变量来指定使用的 GPU
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 import numpy as np
 import torch
