@@ -141,3 +141,87 @@ class Backbone(nn.Module):
         x = self.dark5(x)
         feat3 = x
         return feat1, feat2, feat3
+
+#-------------------------------------------------#
+#   dct特征和RGB特征融合模块,只是进行简单的上采样对齐RGB和DCT
+#-------------------------------------------------#
+class Backbone_RGB_DCT_fusion(nn.Module):
+    def __init__(self, base_channels, base_depth, deep_mul, phi, pretrained=False):
+        super().__init__()
+        #-----------------------------------------------#
+        #   频域特征融合部分
+        #-----------------------------------------------#
+        # RGB特征提取 3, 640, 640 => 32, 640, 640 => 64, 320, 320
+        self.conv1 = Conv(3, 32, 3, 2)
+        self.conv2 = Conv(32, 64, 3, 2)
+        # 频域特征
+        # 定义一个二倍上采样层,输入是192通道80*80
+        self.dct_upsample = nn.Upsample(scale_factor=2, mode='nearest')
+        
+        #-------------------------------------------------#
+        #   下面是正常的YOLOV8主干
+        #-------------------------------------------------#
+        # 64, 320, 320 => 128, 160, 160 => 128, 160, 160
+        self.dark2 = C2f(256, base_channels * 2, base_depth, True)
+
+        # 128, 160, 160 => 256, 80, 80 => 256, 80, 80
+        self.dark3 = nn.Sequential(
+            Conv(base_channels * 2, base_channels * 4, 3, 2),
+            C2f(base_channels * 4, base_channels * 4, base_depth * 2, True),
+        )
+        # 256, 80, 80 => 512, 40, 40 => 512, 40, 40
+        self.dark4 = nn.Sequential(
+            Conv(base_channels * 4, base_channels * 8, 3, 2),
+            C2f(base_channels * 8, base_channels * 8, base_depth * 2, True),
+        )
+        # 512, 40, 40 => 1024 * deep_mul, 20, 20 => 1024 * deep_mul, 20, 20
+        self.dark5 = nn.Sequential(
+            Conv(base_channels * 8, int(base_channels * 16 * deep_mul), 3, 2),
+            C2f(int(base_channels * 16 * deep_mul), int(base_channels * 16 * deep_mul), base_depth, True),
+            SPPF(int(base_channels * 16 * deep_mul), int(base_channels * 16 * deep_mul), k=5)
+        )
+        
+        if pretrained:
+            url = {
+                "n" : 'https://github.com/bubbliiiing/yolov8-pytorch/releases/download/v1.0/yolov8_n_backbone_weights.pth',
+                "s" : 'https://github.com/bubbliiiing/yolov8-pytorch/releases/download/v1.0/yolov8_s_backbone_weights.pth',
+                "m" : 'https://github.com/bubbliiiing/yolov8-pytorch/releases/download/v1.0/yolov8_m_backbone_weights.pth',
+                "l" : 'https://github.com/bubbliiiing/yolov8-pytorch/releases/download/v1.0/yolov8_l_backbone_weights.pth',
+                "x" : 'https://github.com/bubbliiiing/yolov8-pytorch/releases/download/v1.0/yolov8_x_backbone_weights.pth',
+            }[phi]
+            checkpoint = torch.hub.load_state_dict_from_url(url=url, map_location="cpu", model_dir="./model_data")
+            self.load_state_dict(checkpoint, strict=False)
+            print("Load weights from " + url.split('/')[-1])
+
+    def forward(self, x, dct):
+        #-------------------------------------------------#
+        #   RGB特征和频域特征融合
+        #-------------------------------------------------#
+        x = self.conv1(x)
+        x = self.conv2(x)
+        dct = self.dct_upsample(dct)
+        # 在通道维度上拼接x和dct
+        x = torch.cat([x, dct], dim=1)
+        
+        #-------------------------------------------------#
+        #   正常的YOLOV8特征提取
+        #-------------------------------------------------#
+        x = self.dark2(x)
+        #-----------------------------------------------#
+        #   dark3的输出为256, 80, 80，是一个有效特征层
+        #-----------------------------------------------#
+        x = self.dark3(x)
+        feat1 = x
+        #-----------------------------------------------#
+        #   dark4的输出为512, 40, 40，是一个有效特征层
+        #-----------------------------------------------#
+        x = self.dark4(x)
+        feat2 = x
+        #-----------------------------------------------#
+        #   dark5的输出为1024 * deep_mul, 20, 20，是一个有效特征层
+        #-----------------------------------------------#
+        x = self.dark5(x)
+        feat3 = x
+        return feat1, feat2, feat3
+
+

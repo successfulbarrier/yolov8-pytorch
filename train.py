@@ -13,7 +13,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-from nets.yolo import YoloBody
+from nets.yolo import YoloBody, YoloBody_test01
 from nets.yolo_training import (Loss, ModelEMA, get_lr_scheduler,
                                 set_optimizer_lr, weights_init)
 from utils.callbacks import EvalCallback, LossHistory
@@ -185,12 +185,12 @@ if __name__ == "__main__":
     #   Unfreeze_batch_size     模型在解冻后的batch_size
     #------------------------------------------------------------------#
     UnFreeze_Epoch      = 300
-    Unfreeze_batch_size = 16
+    Unfreeze_batch_size = 32
     #------------------------------------------------------------------#
     #   Freeze_Train    是否进行冻结训练
     #                   默认先冻结主干训练后解冻训练。
     #------------------------------------------------------------------#
-    Freeze_Train        = True
+    Freeze_Train        = False
 
     #------------------------------------------------------------------#
     #   其它训练参数：学习率、优化器、学习率下降有关
@@ -240,7 +240,7 @@ if __name__ == "__main__":
     #                   开启后会加快数据读取速度，但是会占用更多内存
     #                   内存较小的电脑可以设置为2或者0  
     #------------------------------------------------------------------#
-    num_workers         = 4
+    num_workers         = 8
 
     #------------------------------------------------------#
     #   train_annotation_path   训练图片路径和标签
@@ -286,8 +286,9 @@ if __name__ == "__main__":
     #------------------------------------------------------#
     #   创建yolo模型
     #------------------------------------------------------#
-    model = YoloBody(input_shape, num_classes, phi, pretrained=pretrained)
-
+    # model = YoloBody(input_shape, num_classes, phi, pretrained=pretrained)
+    model = YoloBody_test01(input_shape, num_classes, phi, pretrained=pretrained)
+    
     if model_path != '':
         #------------------------------------------------------#
         #   权值文件请看README，百度网盘下载

@@ -424,7 +424,7 @@ def yolo_dataset_collate(batch):
             
     images  = torch.from_numpy(np.array(images)).type(torch.FloatTensor)
     bboxes  = torch.from_numpy(np.concatenate(bboxes, 0)).type(torch.FloatTensor)
-    dct_images  = torch.from_numpy(np.concatenate(dct_images)).type(torch.FloatTensor)
+    dct_images  = torch.from_numpy(np.array(dct_images)).type(torch.FloatTensor)
     return images, bboxes, dct_images
 
 # # DataLoader中collate_fn使用

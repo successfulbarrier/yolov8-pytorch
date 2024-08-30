@@ -22,6 +22,7 @@ def fit_one_epoch(model_train, model, ema, yolo_loss, loss_history, eval_callbac
             if cuda:
                 images = images.cuda(local_rank)
                 bboxes = bboxes.cuda(local_rank)
+                dct_images = dct_images.cuda(local_rank)
         #----------------------#
         #   清零梯度
         #----------------------#
@@ -31,7 +32,7 @@ def fit_one_epoch(model_train, model, ema, yolo_loss, loss_history, eval_callbac
             #   前向传播
             #----------------------#
             # dbox, cls, origin_cls, anchors, strides 
-            outputs = model_train(images)
+            outputs = model_train(images, dct_images)
             loss_value = yolo_loss(outputs, bboxes)
             #----------------------#
             #   反向传播
@@ -85,6 +86,8 @@ def fit_one_epoch(model_train, model, ema, yolo_loss, loss_history, eval_callbac
             if cuda:
                 images = images.cuda(local_rank)
                 bboxes = bboxes.cuda(local_rank)
+                dct_images = dct_images.cuda(local_rank)
+                
             #----------------------#
             #   清零梯度
             #----------------------#
@@ -92,7 +95,7 @@ def fit_one_epoch(model_train, model, ema, yolo_loss, loss_history, eval_callbac
             #----------------------#
             #   前向传播
             #----------------------#
-            outputs     = model_train_eval(images)
+            outputs     = model_train_eval(images, dct_images)
             loss_value  = yolo_loss(outputs, bboxes)
 
         val_loss += loss_value.item()

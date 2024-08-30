@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 from PIL import ImageDraw, ImageFont
 
-from nets.yolo import YoloBody
+from nets.yolo import YoloBody, YoloBody_test01
 from utils.utils import (cvtColor, get_classes, preprocess_input,
                          resize_image, show_config)
 from utils.utils_bbox import DecodeBox
@@ -99,8 +99,8 @@ class YOLO(object):
         #---------------------------------------------------#
         #   建立yolo模型，载入yolo模型的权重
         #---------------------------------------------------#
-        self.net    = YoloBody(self.input_shape, self.num_classes, self.phi)
-        
+        # self.net    = YoloBody(self.input_shape, self.num_classes, self.phi)
+        self.net    = YoloBody_test01(self.input_shape, self.num_classes, self.phi)
         device      = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.net.load_state_dict(torch.load(self.model_path, map_location=device))
         self.net    = self.net.fuse().eval()
