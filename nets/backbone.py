@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-
+from .bottleneck_transformer_pytorch import BottleStack
 
 def autopad(k, p=None, d=1):  
     # kernel, padding, dilation
@@ -143,9 +143,65 @@ class Backbone(nn.Module):
         return feat1, feat2, feat3
 
 #-------------------------------------------------#
+#   坐标注意力
+#-------------------------------------------------#
+class h_sigmoid(nn.Module):
+    def __init__(self, inplace=True):
+        super(h_sigmoid, self).__init__()
+        self.relu = nn.ReLU6(inplace=inplace)
+
+    def forward(self, x):
+        return self.relu(x + 3) / 6
+
+class h_swish(nn.Module):
+    def __init__(self, inplace=True):
+        super(h_swish, self).__init__()
+        self.sigmoid = h_sigmoid(inplace=inplace)
+
+    def forward(self, x):
+        return x * self.sigmoid(x)
+
+class CoordAtt(nn.Module):
+    def __init__(self, inp, reduction=32):
+        super(CoordAtt, self).__init__()
+        self.pool_h = nn.AdaptiveAvgPool2d((None, 1))
+        self.pool_w = nn.AdaptiveAvgPool2d((1, None))
+
+        mip = max(8, inp // reduction)
+
+        self.conv1 = nn.Conv2d(inp, mip, kernel_size=1, stride=1, padding=0)
+        self.bn1 = nn.BatchNorm2d(mip)
+        self.act = h_swish()
+
+        self.conv_h = nn.Conv2d(mip, inp, kernel_size=1, stride=1, padding=0)
+        self.conv_w = nn.Conv2d(mip, inp, kernel_size=1, stride=1, padding=0)
+
+    def forward(self, x):
+        identity = x
+
+        n, c, h, w = x.size()
+        x_h = self.pool_h(x)
+        x_w = self.pool_w(x).permute(0, 1, 3, 2)
+
+        y = torch.cat([x_h, x_w], dim=2)
+        y = self.conv1(y)
+        y = self.bn1(y)
+        y = self.act(y)
+
+        x_h, x_w = torch.split(y, [h, w], dim=2)
+        x_w = x_w.permute(0, 1, 3, 2)
+
+        a_h = self.conv_h(x_h).sigmoid()
+        a_w = self.conv_w(x_w).sigmoid()
+
+        out = identity * a_w * a_h
+
+        return out
+    
+#-------------------------------------------------#
 #   dct特征和RGB特征融合模块,只是进行简单的上采样对齐RGB和DCT
 #-------------------------------------------------#
-class Backbone_RGB_DCT_fusion(nn.Module):
+class Backbone_RGB_DCT_fusion1(nn.Module):
     def __init__(self, base_channels, base_depth, deep_mul, phi, pretrained=False):
         super().__init__()
         #-----------------------------------------------#
@@ -225,3 +281,126 @@ class Backbone_RGB_DCT_fusion(nn.Module):
         return feat1, feat2, feat3
 
 
+#-------------------------------------------------#
+#   dct特征和RGB特征融合模块,只是进行简单的上采样对齐RGB和DCT
+#-------------------------------------------------#
+class Backbone_RGB_DCT_fusion2(nn.Module):
+    def __init__(self, base_channels, base_depth, deep_mul, phi, pretrained=False):
+        super().__init__()
+        #-----------------------------------------------#
+        #   频域特征融合部分
+        #-----------------------------------------------#
+        # RGB特征提取 3, 640, 640 => 32, 640, 640 => 64, 320, 320
+        self.conv1 = Conv(3, 32, 3, 2)
+        self.conv2 = Conv(32, 64, 3, 2)
+        # 频域特征
+        # 定义一个二倍上采样层,输入是192通道80*80
+        self.dct_upsample = nn.Upsample(scale_factor=2, mode='nearest')
+        self.MHSA_H = BottleStack(
+                        dim = 96,               # channels in
+                        fmap_size = 80,         # feature map size
+                        dim_out = 96,           # channels out
+                        proj_factor = 4,        # projection factor
+                        downsample = False,     # downsample on first layer or not
+                        heads = 3,              # number of heads
+                        dim_head = 128,         # dimension per head, defaults to 128
+                        rel_pos_emb = False,    # use relative positional embedding - uses absolute if False
+                        activation = nn.ReLU()  # activation throughout the network
+                    )
+        self.MHSA_L = BottleStack(
+                        dim = 96,               # channels in
+                        fmap_size = 80,         # feature map size
+                        dim_out = 96,           # channels out
+                        proj_factor = 4,        # projection factor
+                        downsample = False,     # downsample on first layer or not
+                        heads = 3,              # number of heads
+                        dim_head = 128,         # dimension per head, defaults to 128
+                        rel_pos_emb = False,    # use relative positional embedding - uses absolute if False
+                        activation = nn.ReLU()  # activation throughout the network
+                    )
+        self.MHSA_ALL = BottleStack(
+                        dim = 192,              # channels in
+                        fmap_size = 80,         # feature map size
+                        dim_out = 192,          # channels out
+                        proj_factor = 4,        # projection factor
+                        downsample = False,     # downsample on first layer or not
+                        heads = 3,              # number of heads
+                        dim_head = 128,         # dimension per head, defaults to 128
+                        rel_pos_emb = False,    # use relative positional embedding - uses absolute if False
+                        activation = nn.ReLU()  # activation throughout the network
+                    )
+        
+        self.coordAtt = CoordAtt(192)   # 主需要设置输出通道
+        
+        #-------------------------------------------------#
+        #   下面是正常的YOLOV8主干
+        #-------------------------------------------------#
+        # 64, 320, 320 => 128, 160, 160 => 128, 160, 160
+        self.dark2 = C2f(256, base_channels * 2, base_depth, True)
+
+        # 128, 160, 160 => 256, 80, 80 => 256, 80, 80
+        self.dark3 = nn.Sequential(
+            Conv(base_channels * 2, base_channels * 4, 3, 2),
+            C2f(base_channels * 4, base_channels * 4, base_depth * 2, True),
+        )
+        # 256, 80, 80 => 512, 40, 40 => 512, 40, 40
+        self.dark4 = nn.Sequential(
+            Conv(base_channels * 4, base_channels * 8, 3, 2),
+            C2f(base_channels * 8, base_channels * 8, base_depth * 2, True),
+        )
+        # 512, 40, 40 => 1024 * deep_mul, 20, 20 => 1024 * deep_mul, 20, 20
+        self.dark5 = nn.Sequential(
+            Conv(base_channels * 8, int(base_channels * 16 * deep_mul), 3, 2),
+            C2f(int(base_channels * 16 * deep_mul), int(base_channels * 16 * deep_mul), base_depth, True),
+            SPPF(int(base_channels * 16 * deep_mul), int(base_channels * 16 * deep_mul), k=5)
+        )
+        
+        if pretrained:
+            url = {
+                "n" : 'https://github.com/bubbliiiing/yolov8-pytorch/releases/download/v1.0/yolov8_n_backbone_weights.pth',
+                "s" : 'https://github.com/bubbliiiing/yolov8-pytorch/releases/download/v1.0/yolov8_s_backbone_weights.pth',
+                "m" : 'https://github.com/bubbliiiing/yolov8-pytorch/releases/download/v1.0/yolov8_m_backbone_weights.pth',
+                "l" : 'https://github.com/bubbliiiing/yolov8-pytorch/releases/download/v1.0/yolov8_l_backbone_weights.pth',
+                "x" : 'https://github.com/bubbliiiing/yolov8-pytorch/releases/download/v1.0/yolov8_x_backbone_weights.pth',
+            }[phi]
+            checkpoint = torch.hub.load_state_dict_from_url(url=url, map_location="cpu", model_dir="./model_data")
+            self.load_state_dict(checkpoint, strict=False)
+            print("Load weights from " + url.split('/')[-1])
+
+    def forward(self, x, dct):
+        #-------------------------------------------------#
+        #   RGB特征和频域特征融合
+        #-------------------------------------------------#
+        x = self.conv1(x)
+        x = self.conv2(x)
+        
+        dct1, dct2 = torch.chunk(dct, 2, dim=1)
+        dct1 = self.MHSA_L(dct1)
+        dct2 = self.MHSA_H(dct2)
+        dct = torch.cat([dct1, dct2], dim=1)
+        dct = self.MHSA_ALL(dct)
+        dct = self.coordAtt(dct)
+        dct = self.dct_upsample(dct)
+        # 在通道维度上拼接x和dct
+        x = torch.cat([x, dct], dim=1)
+        
+        #-------------------------------------------------#
+        #   正常的YOLOV8特征提取
+        #-------------------------------------------------#
+        x = self.dark2(x)
+        #-----------------------------------------------#
+        #   dark3的输出为256, 80, 80，是一个有效特征层
+        #-----------------------------------------------#
+        x = self.dark3(x)
+        feat1 = x
+        #-----------------------------------------------#
+        #   dark4的输出为512, 40, 40，是一个有效特征层
+        #-----------------------------------------------#
+        x = self.dark4(x)
+        feat2 = x
+        #-----------------------------------------------#
+        #   dark5的输出为1024 * deep_mul, 20, 20，是一个有效特征层
+        #-----------------------------------------------#
+        x = self.dark5(x)
+        feat3 = x
+        return feat1, feat2, feat3

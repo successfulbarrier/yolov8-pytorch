@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from nets.backbone import Backbone, C2f, Conv, Backbone_RGB_DCT_fusion
+from nets.backbone import Backbone, C2f, Conv, Backbone_RGB_DCT_fusion1, Backbone_RGB_DCT_fusion2
 from nets.yolo_training import weights_init
 from utils.utils_bbox import make_anchors
 
@@ -200,8 +200,9 @@ class YoloBody_test01(nn.Module):
         #   512, 40, 40
         #   1024 * deep_mul, 20, 20
         #---------------------------------------------------#
-        self.backbone   = Backbone_RGB_DCT_fusion(base_channels, base_depth, deep_mul, phi, pretrained=pretrained)
-
+        # self.backbone   = Backbone_RGB_DCT_fusion1(base_channels, base_depth, deep_mul, phi, pretrained=pretrained)
+        self.backbone   = Backbone_RGB_DCT_fusion2(base_channels, base_depth, deep_mul, phi, pretrained=pretrained)
+        
         #------------------------加强特征提取网络------------------------# 
         self.upsample   = nn.Upsample(scale_factor=2, mode="nearest")
 
@@ -225,7 +226,7 @@ class YoloBody_test01(nn.Module):
         self.shape      = None
         self.nl         = len(ch)
         # self.stride     = torch.zeros(self.nl)
-        self.stride     = torch.tensor([256 / x.shape[-2] for x in self.backbone.forward(torch.zeros(1, 3, 256, 256), torch.zeros(1, 192, 32, 32))])  # forward
+        self.stride     = torch.tensor([640 / x.shape[-2] for x in self.backbone.forward(torch.zeros(1, 3, 640, 640), torch.zeros(1, 192, 80, 80))])  # forward
         self.reg_max    = 16  # DFL channels (ch[0] // 16 to scale 4/8/12/16/20 for n/s/m/l/x)
         self.no         = num_classes + self.reg_max * 4  # number of outputs per anchor
         self.num_classes = num_classes
