@@ -122,7 +122,7 @@ class EvalCallback():
         #---------------------------------------------------------#
         # image_data  = resize_image(image, (self.input_shape[1], self.input_shape[0]), self.letterbox_image)
         image_data  = cv2.resize(image, (self.input_shape[1], self.input_shape[0]), interpolation=cv2.INTER_LINEAR)
-        dct     = np.expand_dims(np.transpose(np.array(self.get_dct(image_data), dtype='float32')), (2, 0, 1), 0)
+        dct     = np.expand_dims(np.transpose(np.array(self.get_dct(image_data), dtype='float32'), (2, 0, 1)), 0)
         
         #---------------------------------------------------------#
         #   添加上batch_size维度
