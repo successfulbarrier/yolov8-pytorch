@@ -115,14 +115,15 @@ class EvalCallback():
         #   在这里将图像转换成RGB图像，防止灰度图在预测时报错。
         #   代码仅仅支持RGB图像的预测，所有其它类型的图像都会转化成RGB
         #---------------------------------------------------------#
-        image       = cvtColor(image)
-        dct        = np.expand_dims(np.transpose(np.array(self.get_dct(image), dtype='float32')), (2, 0, 1), 0)
-
+        image   = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         #---------------------------------------------------------#
         #   给图像增加灰条，实现不失真的resize
         #   也可以直接resize进行识别
         #---------------------------------------------------------#
-        image_data  = resize_image(image, (self.input_shape[1], self.input_shape[0]), self.letterbox_image)
+        # image_data  = resize_image(image, (self.input_shape[1], self.input_shape[0]), self.letterbox_image)
+        image_data  = cv2.resize(image, (self.input_shape[1], self.input_shape[0]), interpolation=cv2.INTER_LINEAR)
+        dct     = np.expand_dims(np.transpose(np.array(self.get_dct(image_data), dtype='float32')), (2, 0, 1), 0)
+        
         #---------------------------------------------------------#
         #   添加上batch_size维度
         #---------------------------------------------------------#
@@ -187,7 +188,8 @@ class EvalCallback():
                 #------------------------------#
                 #   读取图像并转换成RGB图像
                 #------------------------------#
-                image       = Image.open(line[0])
+                # image       = Image.open(line[0])
+                image = cv2.imread(line[0], cv2.IMREAD_COLOR)
                 #------------------------------#
                 #   获得预测框
                 #------------------------------#
