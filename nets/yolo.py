@@ -2,7 +2,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from nets.backbone import Backbone, C2f, Conv, Backbone_RGB_DCT_fusion1, Backbone_RGB_DCT_fusion2
+from nets.backbone import (Backbone, C2f, Conv, Backbone_RGB_DCT_fusion1, Backbone_RGB_DCT_fusion2, 
+                           Backbone_RGB_DCT_fusion3,Backbone_RGB_DCT_fusion4, Backbone_RGB_DCT_fusion5)
 from nets.yolo_training import weights_init
 from utils.utils_bbox import make_anchors
 from nets.giraffe_fpn_btn import GiraffeNeckV2
@@ -422,7 +423,7 @@ class YoloBody_dct_neck(nn.Module):
         #   512, 40, 40
         #   1024 * deep_mul, 20, 20
         #---------------------------------------------------#
-        self.backbone   = Backbone_RGB_DCT_fusion2(base_channels, base_depth, deep_mul, phi, pretrained=pretrained)
+        self.backbone   = Backbone_RGB_DCT_fusion5(base_channels, base_depth, deep_mul, phi, pretrained=pretrained)
 
         #-------------------------------------------------#
         #   颈部网络,不同规模的YOLOV8输入输出通道数不同需要根据实际情况调整

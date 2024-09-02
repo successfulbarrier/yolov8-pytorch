@@ -462,8 +462,8 @@ class Backbone_RGB_DCT_fusion3(nn.Module):
         #   频域特征融合部分
         #-----------------------------------------------#
         # RGB特征提取 3, 640, 640 => 32, 640, 640 => 64, 320, 320
-        self.conv1 = Conv(3, 32, 3, 2)
-        self.conv2 = Conv(32, 64, 3, 2)
+        self.conv1 = Conv(3, 96, 3, 2)
+        self.conv2 = Conv(96, 192, 3, 2)
         # 频域特征
         # 定义一个二倍上采样层,输入是192通道80*80
         self.dct_upsample = nn.Upsample(scale_factor=2, mode='nearest')
@@ -561,8 +561,8 @@ class Backbone_RGB_DCT_fusion4(nn.Module):
         #   频域特征融合部分
         #-----------------------------------------------#
         # RGB特征提取 3, 640, 640 => 32, 640, 640 => 64, 320, 320
-        self.conv1 = Conv(3, 32, 3, 2)
-        self.conv2 = Conv(32, 64, 3, 2)
+        self.conv1 = Conv(3, 96, 3, 2)
+        self.conv2 = Conv(96, 192, 3, 2)
         # 频域特征
         # 定义一个二倍上采样层,输入是192通道80*80
         self.dct_upsample = nn.Upsample(scale_factor=2, mode='nearest')
@@ -616,6 +616,133 @@ class Backbone_RGB_DCT_fusion4(nn.Module):
         x = self.conv1(x)
         x = self.conv2(x)
         
+        dct1, dct2 = torch.chunk(dct, 2, dim=1)
+        dct1 = self.CBAM_L(dct1)
+        dct1 = self.CBAM_L_conv(dct1)
+        dct2 = self.CBAM_H(dct2)
+        dct2 = self.CBAM_H_conv(dct2)
+        dct = torch.cat([dct1, dct2], dim=1)
+        dct = self.CBAM_ALL(dct)
+        dct = self.coordAtt(dct)
+        dct = self.dct_upsample(dct)
+        # 在通道维度上拼接x和dct
+        x = torch.cat([x, dct], dim=1)
+        
+        #-------------------------------------------------#
+        #   正常的YOLOV8特征提取
+        #-------------------------------------------------#
+        x = self.dark2(x)
+        #-----------------------------------------------#
+        #   dark3的输出为256, 80, 80，是一个有效特征层
+        #-----------------------------------------------#
+        x = self.dark3(x)
+        feat1 = x
+        #-----------------------------------------------#
+        #   dark4的输出为512, 40, 40，是一个有效特征层
+        #-----------------------------------------------#
+        x = self.dark4(x)
+        feat2 = x
+        #-----------------------------------------------#
+        #   dark5的输出为1024 * deep_mul, 20, 20，是一个有效特征层
+        #-----------------------------------------------#
+        x = self.dark5(x)
+        feat3 = x
+        return feat1, feat2, feat3
+
+
+#-------------------------------------------------#
+#   对不同频率的dct乘以不同的权重系数
+#-------------------------------------------------#
+class ChannelSplitModule(nn.Module):
+    def __init__(self, input_channels, feat_size, split_num = 6):
+        super(ChannelSplitModule, self).__init__()
+        self.num_channels = input_channels
+        self.split_channels = input_channels // split_num
+        self.split_num = split_num
+        self.weights = nn.Parameter(torch.randn(split_num, feat_size, feat_size))
+        self.dctl = [1, 2 , 3, 4, 5, 6]
+        self.bn = nn.BatchNorm2d(input_channels, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+        
+    def forward(self, x):
+        # 将输入数据从通道维度上分成5部分
+        x = self.bn(x)
+        split_x = torch.chunk(x, self.split_num, dim=1)
+        # 初始化结果
+        result = []
+        for i, x_split in enumerate(split_x):
+            # 和对应的参数矩阵相乘
+            result.append(x_split * torch.clamp(self.weights[i], 0, 1)*self.dctl[i])
+        result = torch.cat(result, 1)
+        return result
+
+
+#-------------------------------------------------#
+#   使用CBAM替换BottleStack，使用坐标注意力
+#-------------------------------------------------#
+class Backbone_RGB_DCT_fusion5(nn.Module):
+    def __init__(self, base_channels, base_depth, deep_mul, phi, pretrained=False):
+        super().__init__()
+        #-----------------------------------------------#
+        #   频域特征融合部分
+        #-----------------------------------------------#
+        # RGB特征提取 3, 640, 640 => 32, 640, 640 => 64, 320, 320
+        self.conv1 = Conv(3, 96, 3, 2)
+        self.conv2 = Conv(96, 192, 3, 2)
+        # 频域特征
+        # 定义一个二倍上采样层,输入是192通道80*80
+        self.channel_split_module = ChannelSplitModule(input_channels=192, feat_size=80)
+        self.dct_upsample = nn.Upsample(scale_factor=2, mode='nearest')
+        self.CBAM_H = CBAM(96)
+        self.CBAM_L = CBAM(96)
+        self.CBAM_H_conv    = Conv(96, 32, 1, 1)
+        self.CBAM_L_conv    = Conv(96, 32, 1, 1)
+        self.CBAM_ALL = CBAM(64)
+        
+        self.coordAtt = CoordAtt(64)   # 主需要设置输出通道
+        
+        #-------------------------------------------------#
+        #   下面是正常的YOLOV8主干
+        #-------------------------------------------------#
+        # 64, 320, 320 => 128, 160, 160 => 128, 160, 160
+        self.dark2 = C2f(256, base_channels * 2, base_depth, True)
+
+        # 128, 160, 160 => 256, 80, 80 => 256, 80, 80
+        self.dark3 = nn.Sequential(
+            Conv(base_channels * 2, base_channels * 4, 3, 2),
+            C2f(base_channels * 4, base_channels * 4, base_depth * 2, True),
+        )
+        # 256, 80, 80 => 512, 40, 40 => 512, 40, 40
+        self.dark4 = nn.Sequential(
+            Conv(base_channels * 4, base_channels * 8, 3, 2),
+            C2f(base_channels * 8, base_channels * 8, base_depth * 2, True),
+        )
+        # 512, 40, 40 => 1024 * deep_mul, 20, 20 => 1024 * deep_mul, 20, 20
+        self.dark5 = nn.Sequential(
+            Conv(base_channels * 8, int(base_channels * 16 * deep_mul), 3, 2),
+            C2f(int(base_channels * 16 * deep_mul), int(base_channels * 16 * deep_mul), base_depth, True),
+            SPPF(int(base_channels * 16 * deep_mul), int(base_channels * 16 * deep_mul), k=5)
+        )
+        
+        if pretrained:
+            url = {
+                "n" : 'https://github.com/bubbliiiing/yolov8-pytorch/releases/download/v1.0/yolov8_n_backbone_weights.pth',
+                "s" : 'https://github.com/bubbliiiing/yolov8-pytorch/releases/download/v1.0/yolov8_s_backbone_weights.pth',
+                "m" : 'https://github.com/bubbliiiing/yolov8-pytorch/releases/download/v1.0/yolov8_m_backbone_weights.pth',
+                "l" : 'https://github.com/bubbliiiing/yolov8-pytorch/releases/download/v1.0/yolov8_l_backbone_weights.pth',
+                "x" : 'https://github.com/bubbliiiing/yolov8-pytorch/releases/download/v1.0/yolov8_x_backbone_weights.pth',
+            }[phi]
+            checkpoint = torch.hub.load_state_dict_from_url(url=url, map_location="cpu", model_dir="./model_data")
+            self.load_state_dict(checkpoint, strict=False)
+            print("Load weights from " + url.split('/')[-1])
+
+    def forward(self, x, dct):
+        #-------------------------------------------------#
+        #   RGB特征和频域特征融合
+        #-------------------------------------------------#
+        x = self.conv1(x)
+        x = self.conv2(x)
+        
+        dct = self.channel_split_module(dct)
         dct1, dct2 = torch.chunk(dct, 2, dim=1)
         dct1 = self.CBAM_L(dct1)
         dct1 = self.CBAM_L_conv(dct1)
