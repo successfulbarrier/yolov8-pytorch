@@ -15,7 +15,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-from nets.yolo import YoloBody, YoloBody_dct, YoloBody_neck, YoloBody_dct_neck
+from nets.yolo import YoloBody, YoloBody_dct, YoloBody_neck, YoloBody_dct_neck, YoloBody_dct_neck2
 from nets.yolo_training import (Loss, ModelEMA, get_lr_scheduler,
                                 set_optimizer_lr, weights_init)
 from utils.callbacks import EvalCallback, LossHistory
@@ -187,7 +187,7 @@ if __name__ == "__main__":
     #   Unfreeze_batch_size     模型在解冻后的batch_size
     #------------------------------------------------------------------#
     UnFreeze_Epoch      = 300
-    Unfreeze_batch_size = 2
+    Unfreeze_batch_size = 8
     #------------------------------------------------------------------#
     #   Freeze_Train    是否进行冻结训练
     #                   默认先冻结主干训练后解冻训练。
@@ -236,7 +236,7 @@ if __name__ == "__main__":
     #   （二）此处设置评估参数较为保守，目的是加快评估速度。
     #------------------------------------------------------------------#
     eval_flag           = True
-    eval_period         = 10
+    eval_period         = 5
     #------------------------------------------------------------------#
     #   num_workers     用于设置是否使用多线程读取数据
     #                   开启后会加快数据读取速度，但是会占用更多内存
@@ -290,7 +290,7 @@ if __name__ == "__main__":
     #------------------------------------------------------#
     # model = YoloBody(input_shape, num_classes, phi, pretrained=pretrained)
     # model = YoloBody_dct(input_shape, num_classes, phi, pretrained=pretrained)
-    model = YoloBody_dct_neck(input_shape, num_classes, phi, pretrained=pretrained)
+    model = YoloBody_dct_neck2(input_shape, num_classes, phi, pretrained=pretrained)
     
     if model_path != '':
         #------------------------------------------------------#
