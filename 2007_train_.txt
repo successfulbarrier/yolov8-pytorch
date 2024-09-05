@@ -1,0 +1,8 @@
+/media/lht/LHT/code/datasets/VOCdevkit/VOC2007/JPEGImages/000016.jpg 92,72,305,473,1
+/media/lht/LHT/code/datasets/VOCdevkit/VOC2007/JPEGImages/000021.jpg 1,235,182,388,11 210,36,336,482,14 46,82,170,365,14 11,181,142,419,14
+/media/lht/LHT/code/datasets/VOCdevkit/VOC2007/JPEGImages/000023.jpg 9,230,245,500,1 230,220,334,500,1 2,1,117,369,14 3,2,243,462,14 225,1,334,486,14
+/media/lht/LHT/code/datasets/VOCdevkit/VOC2007/JPEGImages/000026.jpg 90,125,337,212,6
+/media/lht/LHT/code/datasets/VOCdevkit/VOC2007/JPEGImages/000030.jpg 36,205,180,289,1 51,160,150,292,14 295,138,450,290,14
+/media/lht/LHT/code/datasets/VOCdevkit/VOC2007/JPEGImages/000035.jpg 1,96,191,361,14 218,98,465,318,14
+/media/lht/LHT/code/datasets/VOCdevkit/VOC2007/JPEGImages/000052.jpg 414,232,458,263,15 291,237,333,270,15 183,238,227,273,15 52,244,99,274,15 62,96,107,132,15 184,94,225,128,15
+/media/lht/LHT/code/datasets/VOCdevkit/VOC2007/JPEGImages/000061.jpg 274,11,437,279,3 184,214,281,252,3

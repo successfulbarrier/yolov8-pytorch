@@ -115,23 +115,24 @@ class EvalCallback():
         #   在这里将图像转换成RGB图像，防止灰度图在预测时报错。
         #   代码仅仅支持RGB图像的预测，所有其它类型的图像都会转化成RGB
         #---------------------------------------------------------#
-        image   = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        image       = cvtColor(image)
         #---------------------------------------------------------#
         #   给图像增加灰条，实现不失真的resize
         #   也可以直接resize进行识别
         #---------------------------------------------------------#
-        # image_data  = resize_image(image, (self.input_shape[1], self.input_shape[0]), self.letterbox_image)
-        image_data  = cv2.resize(image, (self.input_shape[1], self.input_shape[0]), interpolation=cv2.INTER_LINEAR)
-        dct     = np.expand_dims(np.transpose(np.array(self.get_dct(image_data), dtype='float32'), (2, 0, 1)), 0)
+        image_data  = resize_image(image, (self.input_shape[1], self.input_shape[0]), self.letterbox_image)
+        image_data = np.array(image_data, dtype='float32')
+        dct = self.get_dct(image_data)
         
         #---------------------------------------------------------#
         #   添加上batch_size维度
         #---------------------------------------------------------#
-        image_data  = np.expand_dims(np.transpose(preprocess_input(np.array(image_data, dtype='float32')), (2, 0, 1)), 0)
-
+        image_data  = np.expand_dims(np.transpose(preprocess_input(image_data), (2, 0, 1)), 0)
+        dct = np.expand_dims(np.transpose(dct, (2, 0, 1)), 0)
+        
         with torch.no_grad():
-            images  = torch.from_numpy(image_data)
-            dct     = torch.from_numpy(dct)
+            images = torch.from_numpy(image_data)
+            dct = torch.from_numpy(dct)
             if self.cuda:
                 images = images.cuda()
                 dct = dct.cuda()
@@ -188,8 +189,7 @@ class EvalCallback():
                 #------------------------------#
                 #   读取图像并转换成RGB图像
                 #------------------------------#
-                # image       = Image.open(line[0])
-                image = cv2.imread(line[0], cv2.IMREAD_COLOR)
+                image       = Image.open(line[0])
                 #------------------------------#
                 #   获得预测框
                 #------------------------------#
