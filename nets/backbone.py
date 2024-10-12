@@ -776,6 +776,7 @@ class Backbone_RGB_DCT_fusion5(nn.Module):
         feat3 = x
         return feat1, feat2, feat3
 
+
 #-------------------------------------------------#
 #   使用CBAM替换BottleStack，使用坐标注意力
 #-------------------------------------------------#
